@@ -66,13 +66,13 @@ def get_batch(
     return inputs, targets
 
 
-def train():
-
+def tokenize():
     tokenizer = Tokenizer.from_files(
         vocab_filepath='tests/fixtures/gpt2_vocab.json',
         merges_filepath='tests/fixtures/gpt2_merges.txt',
         special_tokens=["<|endoftext|>"]
     )
+    tokenizer.use_gpt_mapping = True
 
     # vocabs = list(tokenizer.vocab.items())
     # merges = list(tokenizer.merges)
@@ -80,15 +80,13 @@ def train():
     # print(f"{merges[0]=}, {merges[1]=}, {merges[2]=}")
 
     # read from tests/fixtures/corpus.en and tokenize
-    with open('tests/fixtures/corpus.en', 'r', encoding='utf-8') as f:
+    with open('tests/fixtures/tinystories_sample_5M.txt', 'r', encoding='utf-8') as f:
         text = f.read()
 
     tokens = tokenizer.encode(text)
+    np.save("tokens_tinystories_sample_5M.npy", tokens)
 
-    return
-
-    np.save("tokens.npy", tokens)
-
+def train():
     llm = LLM(
         vocab_size=vocab_size,
         context_length=context_length,
@@ -96,18 +94,18 @@ def train():
         num_layers=num_layers,
         num_heads=num_heads,
         d_ff=d_ff,
-        max_seq_len=context_length,
-        theta=theta,
+        rope_theta=theta,
         device=torch.device(device),
         dtype=torch.float32
     )
 
     optimizer = AdamW(params=llm.parameters())
+    tokens = np.load("tokens_tinystories_sample_5M.npy", mmap_mode='r')
 
     # Dummy training loop
     for epoch in range(n_epoch):
         inputs, outputs = get_batch(
-            dataset=np.load("tokens.npy", mmap_mode='r'),
+            dataset=tokens,
             batch_size=batch_size,
             context_length=context_length,
             device=device
@@ -122,5 +120,70 @@ def train():
 
         save_checkpoint(llm, optimizer, epoch + 1, f"checkpoint_epoch_{epoch + 1}.pt")
 
+def test_fast():
+    tokenizer = Tokenizer.from_files(
+        vocab_filepath='tests/fixtures/gpt2_vocab.json',
+        merges_filepath='tests/fixtures/gpt2_merges.txt',
+        special_tokens=["<|endoftext|>"],
+    )
+    tokenizer.use_gpt_mapping = True
+
+    tests = [
+        "hello world",
+        # "这是中文",
+        "some text that i'll pre-tokenize",
+        # "🙂 emoji test",
+        # "café naïve",
+        "some rare char"
+    ]
+
+    for t in tests:
+        ids = tokenizer.encode(t)
+        print(ids)
+        toks = tokenizer.decode(ids)
+        # 检查每个 token 是否在 vocab 字典中（理论上都应该在）
+        print("TEXT:", t)
+        print("TOKENS:", toks)
+        print("---")
+
+def read_npy_basic(filepath):
+    """读取npy文件并显示基本信息"""
+    try:
+        data = np.load(filepath)
+        
+        print("=== NPY 文件信息 ===")
+        print(f"文件路径: {filepath}")
+        print(f"数据形状: {data.shape}")
+        print(f"数据维度: {data.ndim}")
+        print(f"数据类型: {data.dtype}")
+        print(f"数据大小: {data.size}")
+        print(f"字节大小: {data.nbytes} bytes")
+        print(f"内存布局: {data.flags}")
+        
+        # 显示前几个元素
+        print(f"\n前5个元素: {data.flat[:5] if data.size > 5 else data.flat[:]}")
+        
+        # 显示统计信息
+        if np.issubdtype(data.dtype, np.number):
+            print(f"最小值: {data.min():.4f}")
+            print(f"最大值: {data.max():.4f}")
+            print(f"平均值: {data.mean():.4f}")
+            print(f"标准差: {data.std():.4f}")
+        
+        return data
+        
+    except FileNotFoundError:
+        print(f"错误: 找不到文件 {filepath}")
+        return None
+    except Exception as e:
+        print(f"读取文件时出错: {e}")
+        return None
+
+
 if __name__ == "__main__":
+    # train()
+    # test_fast()
+    # read_npy_basic("tokens.npy")
+    # prompt = input("Input a prompt:")
+    # inference(prompt)
     train()
