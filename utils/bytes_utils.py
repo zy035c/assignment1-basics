@@ -51,4 +51,4 @@ UNICODE_TO_BYTE = {v: k for k, v in BYTE_TO_UNICODE.items()}
 
 if __name__ == "__main__":
     target = "Yes, indeed. It is called Lothric."
-    assert bytes_tuple_to_string(string_to_bytes_tuple(target)) == target
+    assert bytes_list_to_string_gpt_mapping(string_to_bytes_tuple_gpt_mapping(target)) == target

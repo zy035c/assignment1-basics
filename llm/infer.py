@@ -15,7 +15,8 @@ device = "cuda"
 
 def inference(
     prompt: str,
-    epoch_num: int = 100,
+    ckpt_epoch: int = 1000,
+    gen_seq_len: int = 128
 ):
     llm = LLM(
         vocab_size=vocab_size,
@@ -28,7 +29,7 @@ def inference(
         device=torch.device(device),
         dtype=torch.float32
     )
-    llm.load_state_dict(torch.load(f"checkpoint_epoch_{epoch_num}.pt")['model_state_dict'])
+    llm.load_state_dict(torch.load(f"checkpoint_epoch_{ckpt_epoch}_tinystories_sample_5M.pt")['model_state_dict'])
 
     tokenizer = Tokenizer.from_files(
         vocab_filepath='tests/fixtures/gpt2_vocab.json',
@@ -44,7 +45,7 @@ def inference(
 
         generated_ids = input_ids.copy()
 
-        for _ in range(50):  # Generate 50 tokens
+        for _ in range(gen_seq_len):  # Generate 50 tokens
             logits = llm(input_tensor)
             # print(f"{logits=}")
             next_token_logits = logits[0, -1, :]
@@ -53,12 +54,16 @@ def inference(
             generated_ids.append(next_token_id)
             # print(f"Generated ids: {generated_ids=}")
             input_tensor = torch.tensor([generated_ids[-context_length:]], device=device, dtype=torch.long)
+            # print(input_tensor)
 
         generated_text = tokenizer.decode(generated_ids)
         print("Generated Text:")
         print(generated_text)
 
 
+prompt_1 = "Once upon a time, there was a pretty girl named Lily. She loved to"
+
+
 if __name__ == "__main__":
-    prompt_text = "Once upon a time"
-    inference(prompt_text, epoch_num=20)
+    prompt_text = "Once upon a time, a prince and a princess lived in a grand castle."
+    inference(prompt_1, ckpt_epoch=10000, gen_seq_len=512)

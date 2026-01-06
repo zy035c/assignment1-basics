@@ -16,9 +16,11 @@ theta = 10_000
 num_layers = 4
 num_heads = 16
 batch_size = 8
-n_epoch = 100
+n_epoch = 10000
 device = "cuda"
 
+SAVE_CKPT_EVERY = 100  # 每多少步保存一次模型检查点
+EARLY_STOP_STREAK = 8  # 如果验证集损失连续多少次没有下降则提前停止训练
 
 def get_batch(
     dataset: npt.NDArray, batch_size: int, context_length: int, device: str
@@ -101,6 +103,8 @@ def train():
 
     optimizer = AdamW(params=llm.parameters())
     tokens = np.load("tokens_tinystories_sample_5M.npy", mmap_mode='r')
+    last_loss = float('inf')
+    loss_increase_streak = 0
 
     # Dummy training loop
     for epoch in range(n_epoch):
@@ -116,9 +120,20 @@ def train():
         loss.backward()
         optimizer.step()
 
-        print(f"Epoch {epoch + 1}, Loss: {loss.cpu().item()}")
+        current_loss = loss.cpu().item()
+        if current_loss > last_loss:
+            loss_increase_streak += 1
+        else:
+            loss_increase_streak = 0
 
-        save_checkpoint(llm, optimizer, epoch + 1, f"checkpoint_epoch_{epoch + 1}.pt")
+        if loss_increase_streak >= EARLY_STOP_STREAK:
+            break
+
+        print(f"Epoch {epoch + 1}, Loss: {current_loss:.4f}")
+        last_loss = current_loss
+
+        if (epoch + 1) % SAVE_CKPT_EVERY == 0:
+            save_checkpoint(llm, optimizer, epoch + 1, f"checkpoint_epoch_{epoch + 1}.pt")
 
 def test_fast():
     tokenizer = Tokenizer.from_files(
