@@ -16,11 +16,11 @@ theta = 10_000
 num_layers = 4
 num_heads = 16
 batch_size = 8
-n_epoch = 10000
 device = "cuda"
 
-SAVE_CKPT_EVERY = 100  # 每多少步保存一次模型检查点
+SAVE_CKPT_EVERY = 1000  # 每多少步保存一次模型检查点
 EARLY_STOP_STREAK = 8  # 如果验证集损失连续多少次没有下降则提前停止训练
+MAX_N_EPOCH = 40000  # 最大训练轮数
 
 def get_batch(
     dataset: npt.NDArray, batch_size: int, context_length: int, device: str
@@ -76,11 +76,6 @@ def tokenize():
     )
     tokenizer.use_gpt_mapping = True
 
-    # vocabs = list(tokenizer.vocab.items())
-    # merges = list(tokenizer.merges)
-    # print(f"{vocabs[0]=}, {vocabs[1]=}, {vocabs[2]=}")
-    # print(f"{merges[0]=}, {merges[1]=}, {merges[2]=}")
-
     # read from tests/fixtures/corpus.en and tokenize
     with open('tests/fixtures/tinystories_sample_5M.txt', 'r', encoding='utf-8') as f:
         text = f.read()
@@ -88,7 +83,7 @@ def tokenize():
     tokens = tokenizer.encode(text)
     np.save("tokens_tinystories_sample_5M.npy", tokens)
 
-def train():
+def train(max_n_epoch=20000):
     llm = LLM(
         vocab_size=vocab_size,
         context_length=context_length,
@@ -103,11 +98,12 @@ def train():
 
     optimizer = AdamW(params=llm.parameters())
     tokens = np.load("tokens_tinystories_sample_5M.npy", mmap_mode='r')
+    losses = []
     last_loss = float('inf')
     loss_increase_streak = 0
 
     # Dummy training loop
-    for epoch in range(n_epoch):
+    for epoch in range(max_n_epoch):
         inputs, outputs = get_batch(
             dataset=tokens,
             batch_size=batch_size,
@@ -130,36 +126,16 @@ def train():
             break
 
         print(f"Epoch {epoch + 1}, Loss: {current_loss:.4f}")
+        losses.append(current_loss)
         last_loss = current_loss
 
         if (epoch + 1) % SAVE_CKPT_EVERY == 0:
             save_checkpoint(llm, optimizer, epoch + 1, f"checkpoint_epoch_{epoch + 1}.pt")
 
-def test_fast():
-    tokenizer = Tokenizer.from_files(
-        vocab_filepath='tests/fixtures/gpt2_vocab.json',
-        merges_filepath='tests/fixtures/gpt2_merges.txt',
-        special_tokens=["<|endoftext|>"],
-    )
-    tokenizer.use_gpt_mapping = True
-
-    tests = [
-        "hello world",
-        # "这是中文",
-        "some text that i'll pre-tokenize",
-        # "🙂 emoji test",
-        # "café naïve",
-        "some rare char"
-    ]
-
-    for t in tests:
-        ids = tokenizer.encode(t)
-        print(ids)
-        toks = tokenizer.decode(ids)
-        # 检查每个 token 是否在 vocab 字典中（理论上都应该在）
-        print("TEXT:", t)
-        print("TOKENS:", toks)
-        print("---")
+    # Save final checkpoint
+    save_checkpoint(llm, optimizer, epoch + 1, f"checkpoint_epoch_{epoch + 1}_final.pt")
+    # save losses to npy
+    np.save("training_losses.npy", np.array(losses))
 
 def read_npy_basic(filepath):
     """读取npy文件并显示基本信息"""
@@ -201,4 +177,4 @@ if __name__ == "__main__":
     # read_npy_basic("tokens.npy")
     # prompt = input("Input a prompt:")
     # inference(prompt)
-    train()
+    train(MAX_N_EPOCH)

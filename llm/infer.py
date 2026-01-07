@@ -29,7 +29,7 @@ def inference(
         device=torch.device(device),
         dtype=torch.float32
     )
-    llm.load_state_dict(torch.load(f"checkpoint_epoch_{ckpt_epoch}_tinystories_sample_5M.pt")['model_state_dict'])
+    llm.load_state_dict(torch.load(f"checkpoint_epoch_{ckpt_epoch}.pt")['model_state_dict'])
 
     tokenizer = Tokenizer.from_files(
         vocab_filepath='tests/fixtures/gpt2_vocab.json',
@@ -66,4 +66,4 @@ prompt_1 = "Once upon a time, there was a pretty girl named Lily. She loved to"
 
 if __name__ == "__main__":
     prompt_text = "Once upon a time, a prince and a princess lived in a grand castle."
-    inference(prompt_1, ckpt_epoch=10000, gen_seq_len=512)
+    inference(prompt_1, ckpt_epoch=20000, gen_seq_len=512)
